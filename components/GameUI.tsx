@@ -10,6 +10,7 @@ interface GameUIProps {
   score: number;
   onChoiceMade: (winner: BattleImage, loser: BattleImage) => void;
   bucketName: string;
+  userId?: string;
 }
 
 interface WinnerInfo {
@@ -58,11 +59,12 @@ const StatsDisplay: React.FC<{ stats: BattleStats | null, isLoading: boolean, lo
 };
 
 
-const GameUI: React.FC<GameUIProps> = ({ round, score, onChoiceMade, bucketName }) => {
+const GameUI: React.FC<GameUIProps> = ({ round, score, onChoiceMade, bucketName, userId }) => {
   const [images, setImages] = useState<[BattleImage, BattleImage] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [folders, setFolders] = useState<FileObject[]>([]);
+  const [battleQueue, setBattleQueue] = useState<[BattleImage, BattleImage][]>([]);
 
   const [choice, setChoice] = useState<SwipeDirection | null>(null);
   const [winnerInfo, setWinnerInfo] = useState<WinnerInfo | null>(null);
@@ -109,63 +111,101 @@ const GameUI: React.FC<GameUIProps> = ({ round, score, onChoiceMade, bucketName 
     fetchFolders();
   }, [bucketName]);
 
-  // Load a new pair of images for the current round
+  // Prepare the entire game session's image queue once folders are loaded
   useEffect(() => {
-    if (folders.length < 2) return; 
+    if (folders.length < 2) return;
+
+    const prepareGameSession = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const queue: [BattleImage, BattleImage][] = [];
+        const allImageUrls: string[] = [];
+
+        for (let i = 0; i < TOTAL_ROUNDS; i++) {
+            const folder1Index = Math.floor(Math.random() * folders.length);
+            let folder2Index;
+            do {
+              folder2Index = Math.floor(Math.random() * folders.length);
+            } while (folder1Index === folder2Index);
+
+            const folder1 = folders[folder1Index];
+            const folder2 = folders[folder2Index];
+
+            const [{ data: files1, error: error1 }, { data: files2, error: error2 }] = await Promise.all([
+                supabase.storage.from(bucketName).list(folder1.name),
+                supabase.storage.from(bucketName).list(folder2.name)
+            ]);
+            
+            if (error1 || error2) throw new Error(error1?.message || error2?.message);
+            if (!files1 || !files2) throw new Error("Could not list files in one of the selected folders.");
+
+            const imageFiles1 = files1.filter(f => f.id !== null);
+            const imageFiles2 = files2.filter(f => f.id !== null);
+            
+            if (imageFiles1.length === 0 || imageFiles2.length === 0) {
+                console.warn(`Skipping matchup due to empty folder: '${folder1.name}' or '${folder2.name}'. Retrying...`);
+                i--; // Decrement to retry this round's matchup generation
+                continue;
+            }
+
+            const imageFile1 = imageFiles1[Math.floor(Math.random() * imageFiles1.length)];
+            const imageFile2 = imageFiles2[Math.floor(Math.random() * imageFiles2.length)];
+
+            const { data: urlData1 } = supabase.storage.from(bucketName).getPublicUrl(`${folder1.name}/${imageFile1.name}`);
+            const { data: urlData2 } = supabase.storage.from(bucketName).getPublicUrl(`${folder2.name}/${imageFile2.name}`);
+
+            const imagePair: [BattleImage, BattleImage] = [
+              { url: urlData1.publicUrl, name: folder1.name },
+              { url: urlData2.publicUrl, name: folder2.name }
+            ];
+
+            queue.push(imagePair);
+            allImageUrls.push(urlData1.publicUrl, urlData2.publicUrl);
+        }
+
+        setBattleQueue(queue);
+
+        // Preload all images for a smoother experience
+        allImageUrls.forEach(url => {
+            if (url) {
+                const img = new Image();
+                img.src = url;
+            }
+        });
+        
+        if (queue.length > 0) {
+          setImages(queue[0]);
+        }
+
+      } catch (e: any) {
+        setError(e.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    prepareGameSession();
+  }, [folders, bucketName]);
+
+  // Load next pair of images from the pre-fetched queue when the round changes
+  useEffect(() => {
+    if (round === 1 || battleQueue.length < round) return;
 
     isTransitioningRef.current = true;
-    setIsLoading(true);
     setChoice(null);
     setWinnerInfo(null);
     setIsHidingWinner(false);
     setStats(null);
     
-    const timer = setTimeout(async () => {
-      try {
-        const folder1Index = Math.floor(Math.random() * folders.length);
-        let folder2Index;
-        do {
-          folder2Index = Math.floor(Math.random() * folders.length);
-        } while (folder1Index === folder2Index);
-
-        const folder1 = folders[folder1Index];
-        const folder2 = folders[folder2Index];
-
-        const [{ data: files1, error: error1 }, { data: files2, error: error2 }] = await Promise.all([
-            supabase.storage.from(bucketName).list(folder1.name),
-            supabase.storage.from(bucketName).list(folder2.name)
-        ]);
-        
-        if (error1 || error2) throw new Error(error1?.message || error2?.message);
-        if (!files1 || !files2) throw new Error("Could not list files in one of the selected folders.");
-
-        const imageFiles1 = files1.filter(f => f.id !== null);
-        const imageFiles2 = files2.filter(f => f.id !== null);
-        
-        if (imageFiles1.length === 0 || imageFiles2.length === 0) {
-            throw new Error(`One of the randomly selected folders ('${folder1.name}', '${folder2.name}') is empty.`);
-        }
-
-        const imageFile1 = imageFiles1[Math.floor(Math.random() * imageFiles1.length)];
-        const imageFile2 = imageFiles2[Math.floor(Math.random() * imageFiles2.length)];
-
-        const { data: urlData1 } = supabase.storage.from(bucketName).getPublicUrl(`${folder1.name}/${imageFile1.name}`);
-        const { data: urlData2 } = supabase.storage.from(bucketName).getPublicUrl(`${folder2.name}/${imageFile2.name}`);
-
-        setImages([
-          { url: urlData1.publicUrl, name: folder1.name },
-          { url: urlData2.publicUrl, name: folder2.name }
-        ]);
-      } catch (e: any) {
-        setError(e.message);
-      } finally {
-        setIsLoading(false);
-        isTransitioningRef.current = false;
-      }
+    const timer = setTimeout(() => {
+      setImages(battleQueue[round - 1]);
+      isTransitioningRef.current = false;
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [round, folders, bucketName]);
+  }, [round, battleQueue]);
+
 
   const handleChoice = useCallback((direction: SwipeDirection) => {
     if (isTransitioningRef.current || !images) return; 
@@ -178,8 +218,12 @@ const GameUI: React.FC<GameUIProps> = ({ round, score, onChoiceMade, bucketName 
     const chosenLoser = images[loserIndex];
 
     // Record battle result (fire and forget)
-    if (IS_CONFIGURED) {
-      supabase.from('battles').insert({ winner_name: chosenWinner.name, loser_name: chosenLoser.name })
+    if (IS_CONFIGURED && userId) {
+      supabase.from('battles').insert({ 
+          winner_name: chosenWinner.name, 
+          loser_name: chosenLoser.name,
+          user_id: userId
+        })
         .then(({ error }) => {
           if (error) console.error("Failed to record battle:", error.message);
         });
@@ -189,7 +233,7 @@ const GameUI: React.FC<GameUIProps> = ({ round, score, onChoiceMade, bucketName 
         setWinnerInfo({ winner: chosenWinner, loser: chosenLoser });
     }, 400);
 
-  }, [images]);
+  }, [images, userId]);
   
   useEffect(() => {
     if (!winnerInfo || !IS_CONFIGURED) return;

@@ -1,4 +1,4 @@
-export type GameState = 'start' | 'playing' | 'end' | 'winners';
+export type GameState = 'start' | 'playing' | 'end' | 'winners' | 'stats' | 'admin' | 'modelProfile';
 
 export type SwipeDirection = 'left' | 'right';
 

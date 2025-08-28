@@ -6,6 +6,9 @@ import { TOTAL_ROUNDS } from './constants';
 import { supabase, BUCKET_NAME, NSFW_BUCKET_NAME, IS_CONFIGURED, getStripe } from './supabaseClient';
 import AuthScreen from './components/AuthScreen';
 import SubscriptionModal from './components/SubscriptionModal';
+import StatsScreen from './components/StatsScreen';
+import AdminScreen from './components/AdminScreen';
+import ModelProfileScreen from './components/ModelProfileScreen';
 
 type GameMode = 'sfw' | 'nsfw';
 
@@ -46,14 +49,28 @@ const StartScreen: React.FC<{
   onStart: (mode: GameMode) => void; 
   user: Session['user'] | null; 
   onLogout: () => void;
+  onShowStats: () => void;
+  onShowAdmin: () => void;
   isPremium: boolean;
   gameMode: GameMode;
   setGameMode: (mode: GameMode) => void;
   onUpgrade: () => void;
-}> = ({ onStart, user, onLogout, isPremium, gameMode, setGameMode, onUpgrade }) => (
+}> = ({ onStart, user, onLogout, onShowStats, onShowAdmin, isPremium, gameMode, setGameMode, onUpgrade }) => (
   <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-gray-900 text-white animate-fade-in relative">
      <div className="absolute top-4 right-4 flex items-center gap-4">
       <span className="text-gray-400 text-sm hidden sm:block">{user?.email}</span>
+      <button 
+        onClick={onShowAdmin}
+        className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-transform duration-200 transform hover:scale-105"
+      >
+        Creator Studio
+      </button>
+      <button 
+        onClick={onShowStats} 
+        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-transform duration-200 transform hover:scale-105"
+      >
+        My Stats
+      </button>
       <button 
         onClick={onLogout} 
         className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-transform duration-200 transform hover:scale-105"
@@ -161,6 +178,7 @@ const App: React.FC = () => {
   const [gameMode, setGameMode] = useState<GameMode>('sfw');
   const [activeBucket, setActiveBucket] = useState(BUCKET_NAME);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   
   useEffect(() => {
     if (!IS_CONFIGURED) return;
@@ -216,11 +234,25 @@ const App: React.FC = () => {
     setScore(0);
     setRound(1);
     setSessionWinners([]);
+    setSelectedModel(null);
     setGameState('start');
   }, []);
 
   const handleShowWinners = useCallback(() => {
     setGameState('winners');
+  }, []);
+  
+  const handleShowStats = useCallback(() => {
+    setGameState('stats');
+  }, []);
+
+  const handleShowAdmin = useCallback(() => {
+    setGameState('admin');
+  }, []);
+  
+  const handleShowModelProfile = useCallback((modelName: string) => {
+      setSelectedModel(modelName);
+      setGameState('modelProfile');
   }, []);
 
   const handleLogout = useCallback(async () => {
@@ -275,15 +307,21 @@ const App: React.FC = () => {
   const renderGameContent = () => {
     switch (gameState) {
       case 'start':
-        return <StartScreen onStart={handleStartGame} user={session?.user ?? null} onLogout={handleLogout} isPremium={isPremium} gameMode={gameMode} setGameMode={setGameMode} onUpgrade={() => setShowSubscriptionModal(true)} />;
+        return <StartScreen onStart={handleStartGame} user={session?.user ?? null} onLogout={handleLogout} onShowStats={handleShowStats} onShowAdmin={handleShowAdmin} isPremium={isPremium} gameMode={gameMode} setGameMode={setGameMode} onUpgrade={() => setShowSubscriptionModal(true)} />;
       case 'playing':
-        return <GameUI round={round} score={score} onChoiceMade={handleChoiceMade} bucketName={activeBucket} />;
+        return <GameUI round={round} score={score} onChoiceMade={handleChoiceMade} bucketName={activeBucket} userId={session?.user?.id} />;
       case 'end':
         return <EndScreen score={score} onRestart={handleRestartGame} onShowWinners={handleShowWinners} hasWinners={sessionWinners.length > 0} />;
       case 'winners':
         return <WinnersScreen winners={sessionWinners} onRestart={handleRestartGame} />;
+      case 'stats':
+        return <StatsScreen onBack={handleRestartGame} onShowModelProfile={handleShowModelProfile} />;
+      case 'admin':
+        return <AdminScreen onBack={handleRestartGame} />;
+      case 'modelProfile':
+        return <ModelProfileScreen modelName={selectedModel!} onBack={() => setGameState('stats')} />;
       default:
-        return <StartScreen onStart={handleStartGame} user={session?.user ?? null} onLogout={handleLogout} isPremium={isPremium} gameMode={gameMode} setGameMode={setGameMode} onUpgrade={() => setShowSubscriptionModal(true)} />;
+        return <StartScreen onStart={handleStartGame} user={session?.user ?? null} onLogout={handleLogout} onShowStats={handleShowStats} onShowAdmin={handleShowAdmin} isPremium={isPremium} gameMode={gameMode} setGameMode={setGameMode} onUpgrade={() => setShowSubscriptionModal(true)} />;
     }
   };
 
