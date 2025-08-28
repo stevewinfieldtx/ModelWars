@@ -2,11 +2,19 @@ import { createClient } from '@supabase/supabase-js';
 import { loadStripe } from '@stripe/stripe-js';
 import type { Stripe } from '@stripe/stripe-js';
 
-// Securely read credentials from environment variables
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
-const STRIPE_PUBLISHABLE_KEY = process.env.VITE_STRIPE_PUBLISHABLE_KEY;
-export const STRIPE_PRICE_ID = process.env.VITE_STRIPE_PRICE_ID;
+// Provide placeholder values to prevent the app from crashing if env vars are not set.
+// The app will show a configuration error screen until these are replaced.
+const PLACEHOLDER_SUPABASE_URL = 'https://your-project-url.supabase.co';
+const PLACEHOLDER_SUPABASE_KEY = 'your-public-anon-key';
+const PLACEHOLDER_STRIPE_KEY = 'pk_test_your-stripe-publishable-key';
+const PLACEHOLDER_PRICE_ID = 'price_your-stripe-price-id';
+
+
+// Securely read credentials from environment variables, with fallbacks to placeholders
+const supabaseUrl = process.env.VITE_SUPABASE_URL || PLACEHOLDER_SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || PLACEHOLDER_SUPABASE_KEY;
+const STRIPE_PUBLISHABLE_KEY = process.env.VITE_STRIPE_PUBLISHABLE_KEY || PLACEHOLDER_STRIPE_KEY;
+export const STRIPE_PRICE_ID = process.env.VITE_STRIPE_PRICE_ID || PLACEHOLDER_PRICE_ID;
 
 // ==========================================
 // INSTRUCTIONS:
@@ -19,15 +27,16 @@ export const STRIPE_PRICE_ID = process.env.VITE_STRIPE_PRICE_ID;
 // 3. Add the same variables to your hosting provider (e.g., Vercel).
 // ==========================================
 
-export const IS_CONFIGURED = supabaseUrl && supabaseAnonKey;
-export const IS_STRIPE_CONFIGURED = STRIPE_PUBLISHABLE_KEY && STRIPE_PRICE_ID;
+// Check if the placeholder values are still being used.
+export const IS_CONFIGURED = supabaseUrl !== PLACEHOLDER_SUPABASE_URL && supabaseAnonKey !== PLACEHOLDER_SUPABASE_KEY;
+export const IS_STRIPE_CONFIGURED = STRIPE_PUBLISHABLE_KEY !== PLACEHOLDER_STRIPE_KEY && STRIPE_PRICE_ID !== PLACEHOLDER_PRICE_ID;
 
 if (!IS_CONFIGURED) {
-  console.error("Supabase credentials are not configured. Please create a .env.local file and add your Supabase URL and public anon key.");
+  console.warn("Supabase credentials are not configured. The app is running with placeholder values. Please create a .env.local file and add your Supabase URL and public anon key.");
 }
 
 if (!IS_STRIPE_CONFIGURED) {
-    console.error("Stripe is not configured. Please add your Stripe Publishable Key and Price ID to your .env.local file.");
+    console.warn("Stripe is not configured. The app is running with placeholder values. Please add your Stripe Publishable Key and Price ID to your .env.local file.");
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);

@@ -9,6 +9,39 @@ import SubscriptionModal from './components/SubscriptionModal';
 
 type GameMode = 'sfw' | 'nsfw';
 
+const ConfigurationErrorScreen: React.FC = () => (
+  <div className="flex flex-col items-center justify-center h-full text-white p-4 animate-fade-in bg-gray-900">
+    <div className="w-full max-w-2xl p-8 bg-red-900/20 border border-red-500/50 rounded-2xl shadow-lg text-center">
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-red-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+      <h1 className="text-3xl font-bold mb-4 text-red-300">
+        Configuration Missing
+      </h1>
+      <p className="text-gray-300 mb-6">
+        This application is not configured correctly. The frontend needs access to your Supabase and Stripe public keys to function.
+      </p>
+      <div className="text-left bg-gray-800 p-4 rounded-lg">
+        <p className="text-gray-400 mb-2 font-semibold">For local development, create a file named <code className="bg-gray-900 px-1 py-0.5 rounded">.env.local</code> in the project root with the following content:</p>
+        <pre className="bg-gray-900 text-green-300 p-4 rounded-md overflow-x-auto">
+          <code>
+            {`VITE_SUPABASE_URL="YOUR_SUPABASE_URL"
+VITE_SUPABASE_ANON_KEY="YOUR_SUPABASE_PUBLIC_ANON_KEY"
+VITE_STRIPE_PUBLISHABLE_KEY="YOUR_STRIPE_PUBLISHABLE_KEY"
+VITE_STRIPE_PRICE_ID="YOUR_STRIPE_PRICE_ID"`}
+          </code>
+        </pre>
+        <p className="text-gray-400 mt-4 text-sm">
+            <strong>For deployed applications:</strong> Ensure these same variables (prefixed with `VITE_`) are set in your hosting provider's environment variable settings.
+        </p>
+          <p className="text-gray-400 mt-2 text-sm">
+            <strong>Important:</strong> The secrets you've set in the Supabase Dashboard are for your backend functions. The variables above are for the client-side application.
+        </p>
+      </div>
+    </div>
+  </div>
+);
+
 const StartScreen: React.FC<{ 
   onStart: (mode: GameMode) => void; 
   user: Session['user'] | null; 
@@ -130,6 +163,8 @@ const App: React.FC = () => {
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   
   useEffect(() => {
+    if (!IS_CONFIGURED) return;
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setIsPremium(session?.user?.user_metadata?.is_premium ?? false);
@@ -251,6 +286,14 @@ const App: React.FC = () => {
         return <StartScreen onStart={handleStartGame} user={session?.user ?? null} onLogout={handleLogout} isPremium={isPremium} gameMode={gameMode} setGameMode={setGameMode} onUpgrade={() => setShowSubscriptionModal(true)} />;
     }
   };
+
+  if (!IS_CONFIGURED) {
+    return (
+      <div className="w-screen h-screen overflow-hidden bg-gray-900 font-sans">
+        <ConfigurationErrorScreen />
+      </div>
+    );
+  }
 
   return (
     <div className="w-screen h-screen overflow-hidden bg-gray-900 font-sans">
