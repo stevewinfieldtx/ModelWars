@@ -352,6 +352,14 @@ const GameUI: React.FC<GameUIProps> = ({ round, score, onChoiceMade }) => {
             </div>
           )}
         </div>
+        
+        {images && !isLoading && !error && (
+          <div className="mt-8 text-center text-gray-400 animate-fade-in" style={{ animationDelay: '300ms' }}>
+            <p className="text-md">
+              Swipe, or use arrow keys to vote.
+            </p>
+          </div>
+        )}
       </div>
       
       {winnerInfo && (
