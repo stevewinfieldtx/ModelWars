@@ -2,13 +2,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SwipeDirection, BattleImage } from '../types';
 import { TOTAL_ROUNDS } from '../constants';
-import { supabase, BUCKET_NAME, IS_CONFIGURED } from '../supabaseClient';
+import { supabase, IS_CONFIGURED } from '../supabaseClient';
 import type { FileObject } from '@supabase/storage-js';
 
 interface GameUIProps {
   round: number;
   score: number;
   onChoiceMade: (winner: BattleImage, loser: BattleImage) => void;
+  bucketName: string;
 }
 
 interface WinnerInfo {
@@ -57,7 +58,7 @@ const StatsDisplay: React.FC<{ stats: BattleStats | null, isLoading: boolean, lo
 };
 
 
-const GameUI: React.FC<GameUIProps> = ({ round, score, onChoiceMade }) => {
+const GameUI: React.FC<GameUIProps> = ({ round, score, onChoiceMade, bucketName }) => {
   const [images, setImages] = useState<[BattleImage, BattleImage] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,8 +82,10 @@ const GameUI: React.FC<GameUIProps> = ({ round, score, onChoiceMade }) => {
     }
 
     const fetchFolders = async () => {
+      setIsLoading(true);
+      setError(null);
       try {
-        const { data, error } = await supabase.storage.from(BUCKET_NAME).list('', {
+        const { data, error } = await supabase.storage.from(bucketName).list('', {
           limit: 1000,
         });
 
@@ -92,19 +95,19 @@ const GameUI: React.FC<GameUIProps> = ({ round, score, onChoiceMade }) => {
 
         const folderList = data.filter(item => item.id === null);
         if (folderList.length < 2) {
-          setError(`Could not find folders in bucket '${BUCKET_NAME}'. This is likely a permissions issue. Please check your Supabase Storage Policies (RLS) and ensure 'anon' users have 'SELECT' permission to list files.`);
+          setError(`Could not find folders in bucket '${bucketName}'. This is likely a permissions issue. For private buckets, ensure the logged-in user has 'SELECT' permission via RLS policies.`);
           setIsLoading(false);
         } else {
           setFolders(folderList);
         }
       } catch (err: any) {
-        setError(`Failed to fetch from Supabase bucket '${BUCKET_NAME}': ${err.message}`);
+        setError(`Failed to fetch from Supabase bucket '${bucketName}': ${err.message}`);
         setIsLoading(false);
       }
     };
 
     fetchFolders();
-  }, []);
+  }, [bucketName]);
 
   // Load a new pair of images for the current round
   useEffect(() => {
@@ -129,8 +132,8 @@ const GameUI: React.FC<GameUIProps> = ({ round, score, onChoiceMade }) => {
         const folder2 = folders[folder2Index];
 
         const [{ data: files1, error: error1 }, { data: files2, error: error2 }] = await Promise.all([
-            supabase.storage.from(BUCKET_NAME).list(folder1.name),
-            supabase.storage.from(BUCKET_NAME).list(folder2.name)
+            supabase.storage.from(bucketName).list(folder1.name),
+            supabase.storage.from(bucketName).list(folder2.name)
         ]);
         
         if (error1 || error2) throw new Error(error1?.message || error2?.message);
@@ -146,8 +149,8 @@ const GameUI: React.FC<GameUIProps> = ({ round, score, onChoiceMade }) => {
         const imageFile1 = imageFiles1[Math.floor(Math.random() * imageFiles1.length)];
         const imageFile2 = imageFiles2[Math.floor(Math.random() * imageFiles2.length)];
 
-        const { data: urlData1 } = supabase.storage.from(BUCKET_NAME).getPublicUrl(`${folder1.name}/${imageFile1.name}`);
-        const { data: urlData2 } = supabase.storage.from(BUCKET_NAME).getPublicUrl(`${folder2.name}/${imageFile2.name}`);
+        const { data: urlData1 } = supabase.storage.from(bucketName).getPublicUrl(`${folder1.name}/${imageFile1.name}`);
+        const { data: urlData2 } = supabase.storage.from(bucketName).getPublicUrl(`${folder2.name}/${imageFile2.name}`);
 
         setImages([
           { url: urlData1.publicUrl, name: folder1.name },
@@ -162,7 +165,7 @@ const GameUI: React.FC<GameUIProps> = ({ round, score, onChoiceMade }) => {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [round, folders]);
+  }, [round, folders, bucketName]);
 
   const handleChoice = useCallback((direction: SwipeDirection) => {
     if (isTransitioningRef.current || !images) return; 

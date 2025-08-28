@@ -1,23 +1,45 @@
 import { createClient } from '@supabase/supabase-js';
+import { loadStripe } from '@stripe/stripe-js';
+import type { Stripe } from '@stripe/stripe-js';
 
-// IMPORTANT: The key you need is your project's PUBLIC ANON KEY.
-// An S3 Access Key will not work here and will cause an authentication error.
-//
-// How to find your anon key:
-// 1. Go to your Supabase project dashboard.
-// 2. Click the 'Settings' icon (the gear).
-// 3. Click 'API' in the menu.
-// 4. Under 'Project API keys', find the key labeled 'public' or 'anon' and copy it.
-const supabaseUrl = 'https://qmclolibbzaeewssqycy.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFtY2xvbGliYnphZWV3c3NxeWN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUzNjQzOTksImV4cCI6MjA3MDk0MDM5OX0.CDn_kCXJ1h5qnd3OkcX2f8P_98PKbteiwsDO7DL2To4';
+// Securely read credentials from environment variables
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
+const STRIPE_PUBLISHABLE_KEY = process.env.VITE_STRIPE_PUBLISHABLE_KEY;
+export const STRIPE_PRICE_ID = process.env.VITE_STRIPE_PRICE_ID;
 
-// The app will check if you have replaced the placeholder key.
-export const IS_CONFIGURED = supabaseUrl && supabaseAnonKey && !supabaseAnonKey.includes('YOUR_SUPABASE');
+// ==========================================
+// INSTRUCTIONS:
+// 1. Create a `.env.local` file in your project root.
+// 2. Add your keys there:
+//    VITE_SUPABASE_URL="YOUR_URL"
+//    VITE_SUPABASE_ANON_KEY="YOUR_KEY"
+//    VITE_STRIPE_PUBLISHABLE_KEY="YOUR_KEY"
+//    VITE_STRIPE_PRICE_ID="YOUR_PRICE_ID"
+// 3. Add the same variables to your hosting provider (e.g., Vercel).
+// ==========================================
+
+export const IS_CONFIGURED = supabaseUrl && supabaseAnonKey;
+export const IS_STRIPE_CONFIGURED = STRIPE_PUBLISHABLE_KEY && STRIPE_PRICE_ID;
 
 if (!IS_CONFIGURED) {
-  console.error("Supabase credentials are not configured. Please open supabaseClient.ts and add your project's public anon key.");
+  console.error("Supabase credentials are not configured. Please create a .env.local file and add your Supabase URL and public anon key.");
+}
+
+if (!IS_STRIPE_CONFIGURED) {
+    console.error("Stripe is not configured. Please add your Stripe Publishable Key and Price ID to your .env.local file.");
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+let stripePromise: Promise<Stripe | null>;
+export const getStripe = () => {
+  if (!stripePromise && IS_STRIPE_CONFIGURED) {
+    stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
+  }
+  return stripePromise;
+};
+
+
 export const BUCKET_NAME = 'model-images';
+export const NSFW_BUCKET_NAME = 'model-images-nsfw';
